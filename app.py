@@ -65,13 +65,16 @@ class RecipeWithNutrition(BaseModel):
     food: str = Field(..., description="Diet type")
 
 class Recipe(BaseModel):
-    recipe_id: int
+    recipe_id: int= Field(..., description="ID of recipe")
     name: str = Field(..., description="The title of the recipe")
+    ingredients: list = Field(..., description="List of ingredients")
     steps: str = Field(..., description="Steps to cook")
     time_to_cook: int = Field(..., description="Time required to cook the recipe")
     meal_type: str = Field(..., description="Meal Type")
-    calories_recipe: int = Field(..., description="Calories in the recipe")
+    calories: int = Field(..., description="Calories in the recipe")
     rating: float = Field(..., description="Rating of the recipe")
+    links: Optional[dict] = Field(None, description="List of reachable links")
+    
 
 # Synchronous function to get data from the recipes microservice
 def get_recipe_data_sync(recipe_id: int):
@@ -180,7 +183,7 @@ async def recipe_with_nutrition(recipe_id: int):
         print(f"An error occurred: {str(e)}")  # Print the error for debugging
         raise HTTPException(status_code=500, detail=str(e))
     
-@app.get("/composite/recipe/{recipe_id}", response_model=Recipe)
+@app.get("/composite/recipes/id/{recipe_id}", response_model=Recipe)
 def get_recipe_details(recipe_id: int):
     try:
         start_time_async = time.time()
@@ -193,10 +196,11 @@ def get_recipe_details(recipe_id: int):
         combined_data = {
             "recipe_id": recipe["recipe_id"],
             "name": recipe["name"],
+            "ingredients": recipe["ingredients"],
             "steps": recipe["steps"],
             "time_to_cook": recipe["time_to_cook"],
             "meal_type": recipe["meal_type"],
-            "calories_recipe": recipe["calories"],
+            "calories": recipe["calories"],
             "rating": recipe["rating"]
         }
 
@@ -207,6 +211,67 @@ def get_recipe_details(recipe_id: int):
         print(f"An error occurred: {str(e)}")  # Print the error for debugging
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/composite/recipes", response_model=Recipe)
+async def create_recipe_in_composite(recipe: Recipe):
+    try:
+        # Send a POST request to the recipe API to create a new recipe
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{RECIPE_SERVICE_URL}/recipes", json=recipe.dict()) as response:
+                if response.status != 201:
+                    raise HTTPException(status_code=response.status, detail="Failed to create recipe")
+                # Return the newly created recipe data
+                created_recipe = await response.json()
+                return created_recipe
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating recipe: {e}")
+
+# PUT endpoint to update an existing recipe
+@app.put("/composite/recipes/id/{recipe_id}", response_model=Recipe)
+async def update_recipe_in_composite(recipe_id: int, recipe: Recipe):
+    print("Composite called")
+    try:
+        # Send a PUT request to the recipe API to update the recipe with recipe_id
+        async with aiohttp.ClientSession() as session:
+            print("Composite called: ", f"{RECIPE_SERVICE_URL}/recipes/id/{recipe_id}")
+            print("Data: ",recipe.dict() )
+            async with session.put(f"{RECIPE_SERVICE_URL}/recipes/id/{recipe_id}", json=recipe.dict()) as response:
+                if response.status != 200:
+                    raise HTTPException(status_code=response.status, detail="Failed to update recipe")
+                # Return the updated recipe data
+                updated_recipe = await response.json()
+                return updated_recipe
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating recipe: {e}")
+
+
+# POST endpoint for creating a new recipe via the composite service
+@app.post("/composite/recipes", response_model=Recipe)
+async def create_recipe_in_composite(recipe: Recipe):
+    try:
+        response = requests.post(f"{RECIPE_SERVICE_URL}/recipes", json=recipe.dict())
+        response.raise_for_status()  # Raise an error for bad responses (e.g., 4xx or 5xx)
+
+        # Return the response from the recipe microservice
+        return response.json()
+    except requests.RequestException as e:
+        print(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create recipe: {e}")
+
+
+@app.put("/composite/recipes/{recipe_id}", response_model=Recipe)
+async def update_recipe_in_composite(recipe_id: int, recipe: Recipe):
+    try:
+        # Send a PUT request to the recipe API to update the recipe with recipe_id
+        async with aiohttp.ClientSession() as session:
+            async with session.put(f"{RECIPE_SERVICE_URL}/recipes/id/{recipe_id}", json=recipe.dict()) as response:
+                if response.status != 200:
+                    raise HTTPException(status_code=response.status, detail="Failed to update recipe")
+                # Return the updated recipe data
+                updated_recipe = await response.json()
+                return updated_recipe
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating recipe: {e}")
 
 
 
