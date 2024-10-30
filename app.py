@@ -64,7 +64,14 @@ class RecipeWithNutrition(BaseModel):
     weeks: str = Field(..., description="Diet type")
     food: str = Field(..., description="Diet type")
 
-
+class Recipe(BaseModel):
+    recipe_id: int
+    name: str = Field(..., description="The title of the recipe")
+    steps: str = Field(..., description="Steps to cook")
+    time_to_cook: int = Field(..., description="Time required to cook the recipe")
+    meal_type: str = Field(..., description="Meal Type")
+    calories_recipe: int = Field(..., description="Calories in the recipe")
+    rating: float = Field(..., description="Rating of the recipe")
 
 # Synchronous function to get data from the recipes microservice
 def get_recipe_data_sync(recipe_id: int):
@@ -172,14 +179,36 @@ async def recipe_with_nutrition(recipe_id: int):
     except Exception as e:
         print(f"An error occurred: {str(e)}")  # Print the error for debugging
         raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/composite/recipe/{recipe_id}", response_model=Recipe)
+def get_recipe_details(recipe_id: int):
+    try:
+        start_time_async = time.time()
+        recipe= get_recipe_data_sync(recipe_id)
+        print("recipe: ", recipe)
+        total_time_async = time.time() - start_time_async
+        print(f"Recipe asynchronous call took {total_time_async:.2f} seconds")
 
-#PUT AND POST 
-# MAKE A NEW RECIPE WITH A ALTERNATE INGREDIENT
 
-# Health check route
-@app.get("/health")
-def health_check():
-    return {"status": "Composite service is running."}
+        combined_data = {
+            "recipe_id": recipe["recipe_id"],
+            "name": recipe["name"],
+            "steps": recipe["steps"],
+            "time_to_cook": recipe["time_to_cook"],
+            "meal_type": recipe["meal_type"],
+            "calories_recipe": recipe["calories"],
+            "rating": recipe["rating"]
+        }
+
+        # Return combined data
+        return combined_data
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")  # Print the error for debugging
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 
 # Example usage:
 async def main():
